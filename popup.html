@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 280px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+    }
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #333;
+    }
+    .status {
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-weight: 500;
+    }
+    .status.active {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.inactive {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    button {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    button.active {
+      background: #28a745;
+      color: white;
+    }
+    button.active:hover {
+      background: #218838;
+    }
+    button.inactive {
+      background: #dc3545;
+      color: white;
+    }
+    button.inactive:hover {
+      background: #c82333;
+    }
+    .stats {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+      color: #666;
+      font-size: 12px;
+    }
+    .stats strong {
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h2>Mercari Sales Overlay</h2>
+  <div id="status" class="status inactive">Overlay OFF</div>
+  <button id="toggle" class="inactive">Enable Overlay</button>
+  <div class="stats">
+    <div>Sales data: <strong id="salesCount">Loading...</strong></div>
+    <div>Logged on page: <strong id="pageCount">-</strong></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
