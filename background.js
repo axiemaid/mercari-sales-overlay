@@ -1,11 +1,14 @@
 // background.js - Service worker for fetching sales data
 
 const SALES_URL = 'http://localhost:3010/sales';
+const EXCLUDED_URL = 'http://localhost:3010/excluded';
 
-// Listen for messages from popup
+// Listen for messages from popup/content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'fetchSales') {
     fetchSalesData();
+  } else if (message.action === 'toggleExclude') {
+    toggleExclude(message.item_id, message.title, message.currentlyExcluded);
   }
 });
 
@@ -43,6 +46,9 @@ async function fetchSalesData() {
 
     console.log('[Mercari Overlay] Cached', Object.keys(salesMap).length, 'sales');
 
+    // Also fetch excluded data
+    await fetchExcludedData();
+
     // Notify all Mercari tabs to refresh their overlay
     const tabs = await chrome.tabs.query({ url: 'https://jp.mercari.com/search*' });
     for (const tab of tabs) {
@@ -58,6 +64,53 @@ async function fetchSalesData() {
 
   } catch (error) {
     console.error('[Mercari Overlay] Failed to fetch sales:', error);
+  }
+}
+
+// Fetch and cache excluded data
+async function fetchExcludedData() {
+  try {
+    const response = await fetch(EXCLUDED_URL);
+    if (!response.ok) return;
+
+    const excluded = await response.json();
+    const excludedMap = {};
+    for (const item of excluded) {
+      if (item.item_id) {
+        excludedMap[item.item_id] = { title: item.title };
+      }
+    }
+
+    await chrome.storage.local.set({ excludedData: excludedMap });
+    console.log('[Mercari Overlay] Cached', Object.keys(excludedMap).length, 'excluded');
+
+    // Notify tabs
+    const tabs = await chrome.tabs.query({ url: 'https://jp.mercari.com/search*' });
+    for (const tab of tabs) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, {
+          action: 'excludedUpdated',
+          excludedData: excludedMap
+        });
+      } catch (e) {}
+    }
+  } catch (error) {
+    console.error('[Mercari Overlay] Failed to fetch excluded:', error);
+  }
+}
+
+// Toggle exclude via API
+async function toggleExclude(item_id, title, currentlyExcluded) {
+  try {
+    const action = currentlyExcluded ? 'remove' : 'add';
+    await fetch('http://localhost:3010/exclude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_id, title, action })
+    });
+    await fetchExcludedData();
+  } catch (error) {
+    console.error('[Mercari Overlay] Toggle exclude failed:', error);
   }
 }
 

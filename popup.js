@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Listen for page count updates from content script
   chrome.runtime.onMessage.addListener((message) => {
     if (message.action === 'pageStats') {
-      pageCountEl.textContent = `${message.loggedCount} / ${message.totalCount}`;
+      pageCountEl.textContent = `${message.loggedCount} logged, ${message.excludedCount || 0} excluded / ${message.totalCount}`;
     }
   });
 
