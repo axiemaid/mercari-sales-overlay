@@ -74,6 +74,8 @@ async function fetchExcludedData() {
     if (!response.ok) return;
 
     const excluded = await response.json();
+    console.log('[Mercari Overlay] Fetched excluded array, length:', excluded.length);
+    
     const excludedMap = {};
     for (const item of excluded) {
       if (item.item_id) {
@@ -81,11 +83,15 @@ async function fetchExcludedData() {
       }
     }
 
+    console.log('[Mercari Overlay] Converted to map, keys:', Object.keys(excludedMap).length);
+    console.log('[Mercari Overlay] Sample keys:', Object.keys(excludedMap).slice(0, 5));
+    
     await chrome.storage.local.set({ excludedData: excludedMap });
     console.log('[Mercari Overlay] Cached', Object.keys(excludedMap).length, 'excluded');
 
     // Notify tabs
     const tabs = await chrome.tabs.query({ url: 'https://jp.mercari.com/search*' });
+    console.log('[Mercari Overlay] Notifying', tabs.length, 'tabs');
     for (const tab of tabs) {
       try {
         await chrome.tabs.sendMessage(tab.id, {
@@ -101,13 +107,22 @@ async function fetchExcludedData() {
 
 // Toggle exclude via API
 async function toggleExclude(item_id, title, currentlyExcluded) {
+  console.log('[Mercari Overlay] ========== toggleExclude ==========');
+  console.log('[Mercari Overlay] item_id:', item_id);
+  console.log('[Mercari Overlay] currentlyExcluded:', currentlyExcluded, 'type:', typeof currentlyExcluded);
+  
   try {
     const action = currentlyExcluded ? 'remove' : 'add';
-    await fetch('http://localhost:3010/exclude', {
+    console.log('[Mercari Overlay] Action will be:', action);
+    
+    const response = await fetch('http://localhost:3010/exclude', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_id, title, action })
     });
+    const data = await response.json();
+    console.log('[Mercari Overlay] API response - excluded count:', data.excluded ? data.excluded.length : 'unknown');
+    
     await fetchExcludedData();
   } catch (error) {
     console.error('[Mercari Overlay] Toggle exclude failed:', error);

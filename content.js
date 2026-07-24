@@ -17,7 +17,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     salesData = message.salesData;
     if (overlayActive) applyOverlay();
   } else if (message.action === 'excludedUpdated') {
-    excludedData = message.excludedData;
+    console.log('[Mercari Overlay] ========== excludedUpdated ==========');
+    console.log('[Mercari Overlay] Received data:', JSON.stringify(message.excludedData).slice(0, 500));
+    console.log('[Mercari Overlay] Type:', typeof message.excludedData);
+    console.log('[Mercari Overlay] Is array?:', Array.isArray(message.excludedData));
+    excludedData = message.excludedData || {};
+    console.log('[Mercari Overlay] Local excludedData now has', Object.keys(excludedData).length, 'keys');
     if (overlayActive) applyOverlay();
   }
 });
@@ -28,7 +33,14 @@ async function init() {
     await chrome.storage.local.get(['overlayActive', 'salesData', 'excludedData']);
 
   if (savedSales) salesData = savedSales;
-  if (savedExcluded) excludedData = savedExcluded;
+  if (savedExcluded && typeof savedExcluded === 'object' && !Array.isArray(savedExcluded)) {
+    excludedData = savedExcluded;
+  }
+
+  // Always request fresh data from background on init (storage may be stale)
+  try {
+    chrome.runtime.sendMessage({ action: 'fetchSales' });
+  } catch (e) {}
 
   if (savedActive) {
     overlayActive = true;
@@ -56,12 +68,17 @@ function applyOverlay() {
     if (saleInfo) {
       loggedCount++;
       highlightListing(listing, saleInfo);
-    } else if (isExcluded) {
+    }
+    
+    // Sync excluded visual state (add or remove yellow border)
+    if (isExcluded) {
       excludedCount++;
-      markExcluded(listing);
+      listing.classList.add('mercsales-excluded');
+    } else {
+      listing.classList.remove('mercsales-excluded');
     }
 
-    // Add buttons (only if not already present)
+    // Add/update buttons
     addButtons(listing, itemId, isExcluded);
   });
 
@@ -76,9 +93,22 @@ function applyOverlay() {
   } catch (e) {}
 }
 
-// Add copy and exclude buttons
+// Add or update copy and exclude buttons
 function addButtons(listing, itemId, isExcluded) {
-  if (listing.querySelector('.mercsales-copy')) return; // Already added
+  // Normalize isExcluded - handle undefined/null/bad types
+  isExcluded = Boolean(isExcluded);
+
+  // Update existing exclude button state (buttons already created)
+  const existingExclude = listing.querySelector('.mercsales-exclude');
+  if (existingExclude) {
+    if (isExcluded) {
+      existingExclude.classList.add('active');
+    } else {
+      existingExclude.classList.remove('active');
+    }
+    existingExclude.title = isExcluded ? 'Unexclude' : 'Exclude (bulk lot)';
+    return;
+  }
 
   const figure = listing.querySelector('figure');
   if (!figure) return;
@@ -107,19 +137,23 @@ function addButtons(listing, itemId, isExcluded) {
 
   // Exclude button
   const excludeBtn = document.createElement('button');
-  excludeBtn.className = 'mercsales-exclude' + (isExcluded ? ' active' : '');
+  excludeBtn.className = 'mercsales-exclude';
+  if (isExcluded) excludeBtn.classList.add('active');
   excludeBtn.title = isExcluded ? 'Unexclude' : 'Exclude (bulk lot)';
   excludeBtn.innerHTML = '🚫';
   excludeBtn.type = 'button';
   excludeBtn.addEventListener('click', async (e) => {
     e.preventDefault();
     e.stopPropagation();
+    // Use DATA state, not button class — button visual may be stale
+    const nowExcluded = Boolean(excludedData[itemId]);
+    console.log('[Mercari Overlay] Click on item:', itemId, 'data.active:', nowExcluded);
     try {
       chrome.runtime.sendMessage({
         action: 'toggleExclude',
         item_id: itemId,
         title: listing.getAttribute('aria-label') || '',
-        currentlyExcluded: isExcluded
+        currentlyExcluded: nowExcluded
       });
     } catch (err) {}
   });
@@ -140,12 +174,6 @@ function highlightListing(listing, saleInfo) {
 
   const figure = listing.querySelector('figure');
   if (figure) figure.appendChild(badge);
-}
-
-// Mark listing as excluded (yellow border)
-function markExcluded(listing) {
-  if (listing.classList.contains('mercsales-excluded')) return;
-  listing.classList.add('mercsales-excluded');
 }
 
 // Clear all highlights
